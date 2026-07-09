@@ -1,0 +1,98 @@
+syntax = "proto2";
+
+package oran.ransm.v1;
+
+// -----------------------------------------------------------------------
+// Custom E2 Service Model (E2SM) wire format for the MRN Project 1 PoC.
+// This is *not* a 3GPP/O-RAN WG3 compliant E2SM-KPM message set: it is a
+// minimal, self-contained protocol shared by the xApp (Python) and the
+// gNB emulator (C) over a plain UDP transport, with no ASN.1 encoding.
+//
+// Naming follows the official Protocol Buffers style guide (CamelCase
+// messages/enums, snake_case fields) so that both the generated Python
+// classes and the protobuf-c generated C structs map onto clean,
+// predictable identifiers (RanMessage, UeInfo, ...) instead of the
+// ALL-CAPS acronym-like names produced by underscored type names.
+// -----------------------------------------------------------------------
+
+// Discriminates the payload carried by a RanMessage.
+enum RanMessageType {
+  SUBSCRIPTION         = 1;
+  INDICATION_REQUEST   = 2;
+  INDICATION_RESPONSE  = 3;
+  CONTROL              = 4;
+}
+
+// Identifiers for every RAN parameter that can be requested, reported or
+// written. Kept as a flat enum (rather than per-parameter messages) so
+// that new metrics can be added without touching the envelope messages.
+enum RanParameterId {
+  GNB_ID              = 1;
+  reserved 2;   // reserved for a future cell identifier (single-cell PoC)
+  UE_LIST             = 3;
+  reserved 4;   // reserved for a future slice identifier (not needed yet)
+  GLOBAL_PRB_ALLOC    = 5;
+  MAX_PRB             = 6;
+}
+
+// A single (parameter id -> value) pair. Exactly one of the oneof
+// alternatives is populated, matching the parameter's semantic type.
+message RanParameterMapEntry {
+  required RanParameterId key = 1;
+  oneof value {
+    int64  int64_value  = 2;
+    string string_value = 3;
+    UeList ue_list       = 4;
+  }
+}
+
+// xApp -> gNB: "please report these parameters".
+message RanIndicationRequest {
+  repeated RanParameterId target_params = 1;
+}
+
+// gNB -> xApp: parameter values requested above.
+message RanIndicationResponse {
+  repeated RanParameterMapEntry param_map = 1;
+}
+
+// xApp -> gNB: "please apply these parameter values" (control loop,
+// unused by the metrics-collection flow but part of the shared envelope).
+message RanControlRequest {
+  repeated RanParameterMapEntry target_param_map = 1;
+}
+
+// Top-level envelope exchanged between the xApp and the gNB emulator.
+message RanMessage {
+  required RanMessageType msg_type = 1;
+  oneof payload {
+    RanIndicationRequest  indication_request  = 2;
+    RanIndicationResponse indication_response = 3;
+    RanControlRequest     control_request     = 4;
+  }
+}
+
+// Per-UE PHY/MAC measurements and control properties.
+message UeInfo {
+  required uint32 rnti = 1;              // UE identifier (radio network temporary id)
+
+  // PHY/MAC measurements reported by the gNB.
+  optional float  rsrp_dbm = 2;          // Reference Signal Received Power [dBm]
+  optional float  ber_ul   = 3;          // Bit Error Rate, uplink
+  optional float  ber_dl   = 4;          // Bit Error Rate, downlink
+  optional uint32 mcs_ul   = 5;          // Modulation and Coding Scheme index, uplink
+  optional uint32 mcs_dl   = 6;          // Modulation and Coding Scheme index, downlink
+
+  reserved 7;                            // reserved for a future measurement field
+
+  // Generic control properties settable by the xApp (used by the
+  // control-loop project variants, not by the collection-only flow).
+  optional bool  aux_flag  = 8;
+  optional float aux_value = 9;
+}
+
+// Snapshot of all UEs currently connected to a gNB.
+message UeList {
+  required uint32 connected_ues = 1;
+  repeated UeInfo ue_info = 2;
+}
