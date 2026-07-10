@@ -1,7 +1,5 @@
 syntax = "proto2";
 
-package oran.ransm.v1;
-
 // -----------------------------------------------------------------------
 // Custom E2 Service Model (E2SM) wire format for the MRN Project 1 PoC.
 // This is *not* a 3GPP/O-RAN WG3 compliant E2SM-KPM message set: it is a
